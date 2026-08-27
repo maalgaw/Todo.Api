@@ -1,4 +1,4 @@
-﻿namespace Todo.Api.Models;
+namespace Todo.Api.Models;
 
 public class User
 {
@@ -6,5 +6,7 @@ public class User
     public string Username { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = "User";
+    public string? DisplayName { get; set; }
+    public string? AvatarUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

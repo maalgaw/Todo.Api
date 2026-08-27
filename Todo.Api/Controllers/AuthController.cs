@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Todo.Api.Data;
 using Todo.Api.Models;
@@ -47,7 +47,9 @@ public class AuthController : ControllerBase
         {
             Token = token,
             Username = user.Username,
-            Role = user.Role
+            Role = user.Role,
+            DisplayName = user.DisplayName,
+            AvatarUrl = user.AvatarUrl
         });
     }
 
@@ -70,7 +72,9 @@ public class AuthController : ControllerBase
         {
             Token = token,
             Username = user.Username,
-            Role = user.Role
+            Role = user.Role,
+            DisplayName = user.DisplayName,
+            AvatarUrl = user.AvatarUrl
         });
     }
 }
