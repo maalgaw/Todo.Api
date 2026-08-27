@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Todo.Api.Data;
@@ -6,6 +7,7 @@ using Todo.Api.Models.DTOs;
 
 namespace Todo.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class TodosController : ControllerBase
@@ -17,13 +19,20 @@ public class TodosController : ControllerBase
         _context = context;
     }
 
+    //Lấy Id của người dùng qua token
+    private int GetCurrentUserId()
+    {
+        return int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+    }
+
     //GET
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TodoItem>>> GetTodos()
     {
+        var userId = GetCurrentUserId();
         var todos = await _context.TodoItems
             .Include(t => t.Category)
-            .Where(t => !t.IsDeleted)
+            .Where(t => !t.IsDeleted && t.UserId == userId)
             .OrderByDescending(t => t.IsPinned)
             .ThenByDescending(t => t.CreatedAt)
             .ToListAsync();
@@ -40,11 +49,12 @@ public class TodosController : ControllerBase
             return BadRequest(new { message = "ID công việc không hợp lệ (phải lớn hơn 0)." });
         }
 
-        var todo = await _context.TodoItems.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var todo = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
         if (todo == null)
         {
-            return NotFound(new { message = $"Không tìm thấy công việc với ID = {id}." });
+            return NotFound(new { message = $"Không tìm thấy công việc." });
         }
 
         return Ok(todo);
@@ -74,7 +84,8 @@ public class TodosController : ControllerBase
             Priority = dto.Priority,
             CategoryId = dto.CategoryId,
             IsPinned = dto.IsPinned,
-            IsDeleted = false
+            IsDeleted = false,
+            UserId = GetCurrentUserId()
         };
 
         _context.TodoItems.Add(todo);
@@ -97,11 +108,12 @@ public class TodosController : ControllerBase
             return BadRequest(new { message = "Tên công việc không được để trống." });
         }
 
-        var todo = await _context.TodoItems.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var todo = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
         if (todo == null)
         {
-            return NotFound(new { message = $"Không tìm thấy công việc với ID = {id} để sửa." });
+            return NotFound(new { message = $"Không tìm thấy công việc." });
         }
 
         todo.Title = dto.Title;
@@ -127,16 +139,16 @@ public class TodosController : ControllerBase
             return BadRequest(new { message = "ID công việc không hợp lệ." });
         }
 
-        var todo = await _context.TodoItems.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var todo = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
         if (todo == null)
         {
-            return NotFound(new { message = $"Không tìm thấy công việc với ID = {id} để xóa." });
+            return NotFound(new { message = $"Không tìm thấy công việc." });
         }
 
         // Soft delete
         todo.IsDeleted = true;
-        // _context.TodoItems.Remove(todo); // Old code
         await _context.SaveChangesAsync();
 
         return NoContent();
@@ -146,9 +158,10 @@ public class TodosController : ControllerBase
     [HttpGet("trash")]
     public async Task<ActionResult<IEnumerable<TodoItem>>> GetTrashTodos()
     {
+        var userId = GetCurrentUserId();
         var todos = await _context.TodoItems
             .Include(t => t.Category)
-            .Where(t => t.IsDeleted)
+            .Where(t => t.IsDeleted && t.UserId == userId)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
 
@@ -159,7 +172,8 @@ public class TodosController : ControllerBase
     [HttpDelete("trash/{id}")]
     public async Task<IActionResult> HardDeleteTodo(int id)
     {
-        var todo = await _context.TodoItems.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var todo = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
         if (todo == null)
         {

@@ -2,9 +2,11 @@ using Todo.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Todo.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Todo.Api.Controllers;
 
+[Authorize]
 [Route("api/[controller]")]
 [ApiController]
 public class CategoriesController : ControllerBase
@@ -14,10 +16,17 @@ public class CategoriesController : ControllerBase
     {
         _context = context;
     }
+
+    private int GetCurrentUserId()
+    {
+        return int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+    }
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Category>>> GetCategories()
     {
-        var categories = await _context.Categories.ToListAsync();
+        var userId = GetCurrentUserId();
+        var categories = await _context.Categories.Where(c => c.UserId == userId).ToListAsync();
         return Ok(categories);
     }
     [HttpPost]
@@ -27,6 +36,7 @@ public class CategoriesController : ControllerBase
         {
             return BadRequest(new {message = "Tên thẻ không được để trống"});
         }
+        category.UserId = GetCurrentUserId();
         _context.Categories.Add(category);
         await _context.SaveChangesAsync();
         return Ok(category);
@@ -43,20 +53,15 @@ public class CategoriesController : ControllerBase
             return BadRequest(new {message = "Tên thẻ không được để trống"});
         }
         
-        _context.Entry(category).State = EntityState.Modified;
-        
-        try
+        var userId = GetCurrentUserId();
+        var existingCategory = await _context.Categories.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+        if (existingCategory == null)
         {
-            await _context.SaveChangesAsync();
+            return NotFound();
         }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!await _context.Categories.AnyAsync(e => e.Id == id))
-            {
-                return NotFound();
-            }
-            throw;
-        }
+
+        existingCategory.Name = category.Name;
+        await _context.SaveChangesAsync();
         
         return NoContent();
     }
@@ -64,7 +69,8 @@ public class CategoriesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCategory(int id)
     {
-        var category = await _context.Categories.FindAsync(id);
+        var userId = GetCurrentUserId();
+        var category = await _context.Categories.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
         if (category == null)
         {
             return NotFound();
@@ -76,4 +82,3 @@ public class CategoriesController : ControllerBase
         return NoContent();
     }
 }
-

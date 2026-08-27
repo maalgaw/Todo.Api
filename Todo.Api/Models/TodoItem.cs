@@ -17,11 +17,14 @@ public class TodoItem
     public bool IsCompleted { get; set; }
     public DateTime? DueDate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public string? Description { get; set; }
-    public PriorityLevel Priority { get; set; } = PriorityLevel.Low;
-    public int? CategoryId { get; set; }
-    public Category? Category { get; set; }
     public bool IsDeleted { get; set; }
     public bool IsPinned { get; set; }
+    public string? Description { get; set; }
+    public PriorityLevel Priority { get; set; } = PriorityLevel.Low;
 
+    public int? CategoryId { get; set; }
+    public Category? Category { get; set; }
+
+    public int? UserId { get; set; }
+    public User? User { get; set; }
 }

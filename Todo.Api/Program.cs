@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Todo.Api.Data;
-
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using System.Text.Json.Serialization;
+using Todo.Api.Data;
+using Todo.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,11 +29,31 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins("http://localhost:3001")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
+
+// Đăng ký dịch vụ tạo Token
+builder.Services.AddScoped<ITokenService, TokenService>();
+
+// Cấu hình kiểm tra Token
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]!)),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["JwtSettings:Audience"],
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
 var app = builder.Build();
 
@@ -51,6 +74,8 @@ app.UseCors("AllowFrontend");
 
 // Kích hoạt Middleware bắt lỗi toàn cục
 app.UseExceptionHandler();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
