@@ -33,6 +33,7 @@ public class AuthController : ControllerBase
         var user = new User
         {
             Username = dto.Username,
+            Email = dto.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = "User"
         };
@@ -47,6 +48,7 @@ public class AuthController : ControllerBase
         {
             Token = token,
             Username = user.Username,
+            Email = user.Email,
             Role = user.Role,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl
@@ -72,9 +74,72 @@ public class AuthController : ControllerBase
         {
             Token = token,
             Username = user.Username,
+            Email = user.Email,
             Role = user.Role,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl
         });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordDto dto, [FromServices] IEmailService emailService)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        if (user == null)
+        {
+            // Vẫn trả về OK để tránh lộ lọt email (bảo mật)
+            return Ok(new { message = "Nếu email này tồn tại, mã xác nhận đã được gửi đi." });
+        }
+
+        // Tạo mã OTP ngẫu nhiên 6 số
+        var otp = new Random().Next(100000, 999999).ToString();
+        user.ResetPasswordCode = otp;
+        user.ResetPasswordExpiry = DateTime.UtcNow.AddMinutes(15);
+        await _context.SaveChangesAsync();
+
+        // Gửi email
+        var subject = "Mã xác nhận khôi phục mật khẩu";
+        var body = $@"
+            <h3>Xin chào {user.DisplayName ?? user.Username},</h3>
+            <p>Bạn vừa yêu cầu khôi phục mật khẩu cho tài khoản của mình trên TodoApp.</p>
+            <p>Mã xác nhận của bạn là: <strong><span style='font-size:24px; color:blue;'>{otp}</span></strong></p>
+            <p>Mã này có hiệu lực trong vòng 15 phút.</p>
+            <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+            <br/>
+            <p>Trân trọng,<br/>TodoApp Team</p>
+        ";
+
+        try
+        {
+            await emailService.SendEmailAsync(user.Email, subject, body);
+            return Ok(new { message = "Nếu email này tồn tại, mã xác nhận đã được gửi đi." });
+        }
+        catch (Exception)
+        {
+            // Log lỗi nếu cần thiết
+            return StatusCode(500, new { message = "Có lỗi xảy ra khi gửi email xác nhận. Vui lòng thử lại sau." });
+        }
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordDto dto)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        if (user == null)
+        {
+            return BadRequest(new { message = "Thông tin không hợp lệ." });
+        }
+
+        if (user.ResetPasswordCode != dto.Code || user.ResetPasswordExpiry < DateTime.UtcNow)
+        {
+            return BadRequest(new { message = "Mã xác nhận không đúng hoặc đã hết hạn." });
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        user.ResetPasswordCode = null;
+        user.ResetPasswordExpiry = null;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Đổi mật khẩu thành công. Vui lòng đăng nhập lại." });
     }
 }

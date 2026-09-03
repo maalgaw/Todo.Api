@@ -24,6 +24,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddDbContext<TodoDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<IEmailService, EmailService>();
+
 //Tạo giấy phép CORS
 builder.Services.AddCors(options =>
 {
