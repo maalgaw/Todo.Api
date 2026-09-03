@@ -9,6 +9,7 @@ namespace Todo.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+// Controller xử lý thông tin cá nhân và quyền quản trị viên
 public class UsersController : ControllerBase
 {
     private readonly TodoDbContext _context;

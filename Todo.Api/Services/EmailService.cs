@@ -6,6 +6,7 @@ using MimeKit.Text;
 
 namespace Todo.Api.Services;
 
+// Dịch vụ gửi email thông qua SMTP (Sử dụng MailKit)
 public class EmailService : IEmailService
 {
     private readonly IConfiguration _config;

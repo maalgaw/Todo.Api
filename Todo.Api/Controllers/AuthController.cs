@@ -9,6 +9,7 @@ namespace Todo.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+// Controller xử lý Đăng nhập, Đăng ký và Đặt lại mật khẩu
 public class AuthController : ControllerBase
 {
     private readonly TodoDbContext _context;

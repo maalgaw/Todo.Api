@@ -1,4 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
@@ -6,6 +6,7 @@ using Todo.Api.Models;
 
 namespace Todo.Api.Services;
 
+// Dịch vụ khởi tạo và xác thực JWT Token
 public class TokenService : ITokenService
 {
     private readonly IConfiguration _config;
