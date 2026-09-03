@@ -34,6 +34,7 @@ public class TodosController : ControllerBase
             .Include(t => t.Category)
             .Where(t => !t.IsDeleted && t.UserId == userId)
             .OrderByDescending(t => t.IsPinned)
+            .ThenByDescending(t => t.Priority)
             .ThenByDescending(t => t.CreatedAt)
             .ToListAsync();
 
