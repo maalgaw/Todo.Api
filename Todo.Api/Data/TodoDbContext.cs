@@ -12,6 +12,7 @@ public class TodoDbContext : DbContext
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<User> Users => Set<User>(); // Khai báo bảng Users mới
+    public DbSet<TodoStep> TodoSteps => Set<TodoStep>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

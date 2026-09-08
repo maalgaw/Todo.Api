@@ -43,4 +43,6 @@ public class TodoItem
 
     public int? UserId { get; set; }
     public User? User { get; set; }
+
+    public ICollection<TodoStep> Steps { get; set; } = new List<TodoStep>();
 }

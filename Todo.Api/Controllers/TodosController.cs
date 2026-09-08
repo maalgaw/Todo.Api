@@ -32,6 +32,7 @@ public class TodosController : ControllerBase
         var userId = GetCurrentUserId();
         var todos = await _context.TodoItems
             .Include(t => t.Category)
+            .Include(t => t.Steps)
             .Where(t => !t.IsDeleted && t.UserId == userId)
             .OrderByDescending(t => t.IsPinned)
             .ThenByDescending(t => t.Priority)
@@ -51,7 +52,9 @@ public class TodosController : ControllerBase
         }
 
         var userId = GetCurrentUserId();
-        var todo = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+        var todo = await _context.TodoItems
+            .Include(t => t.Steps)
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
         if (todo == null)
         {
@@ -115,7 +118,9 @@ public class TodosController : ControllerBase
         }
 
         var userId = GetCurrentUserId();
-        var todo = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+        var todo = await _context.TodoItems
+            .Include(t => t.Steps)
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
         if (todo == null)
         {
@@ -161,7 +166,12 @@ public class TodosController : ControllerBase
                     RecurrenceType = todo.RecurrenceType,
                     RecurrenceInterval = todo.RecurrenceInterval,
                     RecurrenceDaysOfWeek = todo.RecurrenceDaysOfWeek,
-                    RecurrenceEndDate = todo.RecurrenceEndDate
+                    RecurrenceEndDate = todo.RecurrenceEndDate,
+                    Steps = todo.Steps.Select(s => new TodoStep 
+                    { 
+                        Title = s.Title, 
+                        IsCompleted = false 
+                    }).ToList()
                 };
                 _context.TodoItems.Add(nextTodo);
             }
