@@ -15,4 +15,10 @@ public class UpdateTodoDto
     public bool IsPinned { get; set; }
     public bool IsDeleted { get; set; } // Dùng cho chức năng Khôi phục (từ true -> false)
 
+    // Recurrence
+    public bool IsRecurring { get; set; } = false;
+    public RecurrenceType RecurrenceType { get; set; } = RecurrenceType.None;
+    public int RecurrenceInterval { get; set; } = 1;
+    public string? RecurrenceDaysOfWeek { get; set; }
+    public DateTime? RecurrenceEndDate { get; set; }
 }

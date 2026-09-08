@@ -9,6 +9,15 @@ public enum PriorityLevel
     High=2
 }
 
+public enum RecurrenceType
+{
+    None = 0,
+    Daily = 1,
+    Weekly = 2,
+    Monthly = 3,
+    Yearly = 4
+}
+
 public class TodoItem
 {
     
@@ -21,6 +30,13 @@ public class TodoItem
     public bool IsPinned { get; set; }
     public string? Description { get; set; }
     public PriorityLevel Priority { get; set; } = PriorityLevel.Low;
+
+    // Recurrence
+    public bool IsRecurring { get; set; } = false;
+    public RecurrenceType RecurrenceType { get; set; } = RecurrenceType.None;
+    public int RecurrenceInterval { get; set; } = 1;
+    public string? RecurrenceDaysOfWeek { get; set; }
+    public DateTime? RecurrenceEndDate { get; set; }
 
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }

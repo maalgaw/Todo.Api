@@ -12,4 +12,11 @@ public class CreateTodoDto
     public PriorityLevel Priority { get; set; } = PriorityLevel.Low;
     public int? CategoryId { get; set; }
     public bool IsPinned { get; set; } = false;
+
+    // Recurrence
+    public bool IsRecurring { get; set; } = false;
+    public RecurrenceType RecurrenceType { get; set; } = RecurrenceType.None;
+    public int RecurrenceInterval { get; set; } = 1;
+    public string? RecurrenceDaysOfWeek { get; set; }
+    public DateTime? RecurrenceEndDate { get; set; }
 }
