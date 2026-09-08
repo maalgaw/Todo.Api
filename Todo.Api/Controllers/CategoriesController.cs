@@ -76,6 +76,13 @@ public class CategoriesController : ControllerBase
             return NotFound();
         }
         
+        //Xoá thẻ -> id thẻ của các công việc chứa id thẻ đó = null
+        var relatedTodos = await _context.TodoItems.Where(t => t.CategoryId == id && t.UserId == userId).ToListAsync();
+        foreach (var todo in relatedTodos)
+        {
+            todo.CategoryId = null;
+        }
+
         _context.Categories.Remove(category);
         await _context.SaveChangesAsync();
         
