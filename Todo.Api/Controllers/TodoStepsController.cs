@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Todo.Api.Data;
 using Todo.Api.Models;
+using Microsoft.AspNetCore.SignalR;
+using Todo.Api.Hubs;
 
 namespace Todo.Api.Controllers;
 
@@ -23,10 +25,27 @@ public class UpdateTodoStepDto
 public class TodoStepsController : ControllerBase
 {
     private readonly TodoDbContext _context;
+    private readonly IHubContext<TodoHub> _hubContext;
 
-    public TodoStepsController(TodoDbContext context)
+    public TodoStepsController(TodoDbContext context, IHubContext<TodoHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
+    }
+
+    private async Task NotifySharedUsersAsync(TodoItem todoItem)
+    {
+        if (todoItem.IsShared || todoItem.Shares?.Any() == true)
+        {
+            var userIds = new List<string> { todoItem.UserId.ToString() };
+            var sharedUserIds = await _context.TodoShares
+                .Where(ts => ts.TodoItemId == todoItem.Id)
+                .Select(ts => ts.UserId.ToString())
+                .ToListAsync();
+            userIds.AddRange(sharedUserIds);
+
+            await _hubContext.Clients.Users(userIds.Distinct()).SendAsync("TodoUpdated");
+        }
     }
 
     private int GetCurrentUserId()
@@ -44,7 +63,9 @@ public class TodoStepsController : ControllerBase
         }
 
         var userId = GetCurrentUserId();
-        var todoItem = await _context.TodoItems.FirstOrDefaultAsync(t => t.Id == todoItemId && t.UserId == userId);
+        var todoItem = await _context.TodoItems
+            .Include(t => t.Shares)
+            .FirstOrDefaultAsync(t => t.Id == todoItemId && (t.UserId == userId || t.Shares.Any(s => s.UserId == userId)));
 
         if (todoItem == null)
         {
@@ -60,6 +81,7 @@ public class TodoStepsController : ControllerBase
 
         _context.TodoSteps.Add(step);
         await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(todoItem);
 
         return Ok(step);
     }
@@ -71,7 +93,9 @@ public class TodoStepsController : ControllerBase
         var userId = GetCurrentUserId();
         var step = await _context.TodoSteps
             .Include(s => s.TodoItem)
-            .FirstOrDefaultAsync(s => s.Id == id && s.TodoItem != null && s.TodoItem.UserId == userId);
+            .ThenInclude(t => t!.Shares)
+            .Include(s => s.CompletedByUser)
+            .FirstOrDefaultAsync(s => s.Id == id && s.TodoItem != null && (s.TodoItem.UserId == userId || s.TodoItem.Shares.Any(sh => sh.UserId == userId)));
 
         if (step == null)
         {
@@ -84,9 +108,20 @@ public class TodoStepsController : ControllerBase
         }
 
         step.Title = dto.Title;
+        bool wasCompleted = step.IsCompleted;
         step.IsCompleted = dto.IsCompleted;
 
+        if (step.IsCompleted && !wasCompleted)
+        {
+            step.CompletedByUserId = userId;
+        }
+        else if (!step.IsCompleted)
+        {
+            step.CompletedByUserId = null;
+        }
+
         await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(step.TodoItem);
 
         return Ok(step);
     }
@@ -98,7 +133,8 @@ public class TodoStepsController : ControllerBase
         var userId = GetCurrentUserId();
         var step = await _context.TodoSteps
             .Include(s => s.TodoItem)
-            .FirstOrDefaultAsync(s => s.Id == id && s.TodoItem != null && s.TodoItem.UserId == userId);
+            .ThenInclude(t => t!.Shares)
+            .FirstOrDefaultAsync(s => s.Id == id && s.TodoItem != null && (s.TodoItem.UserId == userId || s.TodoItem.Shares.Any(sh => sh.UserId == userId)));
 
         if (step == null)
         {
@@ -107,6 +143,7 @@ public class TodoStepsController : ControllerBase
 
         _context.TodoSteps.Remove(step);
         await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(step.TodoItem);
 
         return NoContent();
     }

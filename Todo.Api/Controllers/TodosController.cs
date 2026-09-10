@@ -4,6 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Todo.Api.Data;
 using Todo.Api.Models;
 using Todo.Api.Models.DTOs;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.SignalR;
+using Todo.Api.Hubs;
 
 namespace Todo.Api.Controllers;
 
@@ -13,10 +17,27 @@ namespace Todo.Api.Controllers;
 public class TodosController : ControllerBase
 {
     private readonly TodoDbContext _context;
+    private readonly IHubContext<TodoHub> _hubContext;
 
-    public TodosController(TodoDbContext context)
+    public TodosController(TodoDbContext context, IHubContext<TodoHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
+    }
+
+    private async Task NotifySharedUsersAsync(TodoItem todoItem)
+    {
+        if (todoItem.IsShared || todoItem.Shares?.Any() == true)
+        {
+            var userIds = new List<string> { todoItem.UserId.ToString() };
+            var sharedUserIds = await _context.TodoShares
+                .Where(ts => ts.TodoItemId == todoItem.Id)
+                .Select(ts => ts.UserId.ToString())
+                .ToListAsync();
+            userIds.AddRange(sharedUserIds);
+
+            await _hubContext.Clients.Users(userIds.Distinct()).SendAsync("TodoUpdated");
+        }
     }
 
     //Lấy Id của người dùng qua token
@@ -33,6 +54,7 @@ public class TodosController : ControllerBase
         var todos = await _context.TodoItems
             .Include(t => t.Category)
             .Include(t => t.Steps)
+            .Include(t => t.CompletedByUser)
             .Where(t => !t.IsDeleted && t.UserId == userId)
             .OrderByDescending(t => t.IsPinned)
             .ThenByDescending(t => t.Priority)
@@ -40,6 +62,21 @@ public class TodosController : ControllerBase
             .ToListAsync();
 
         return Ok(todos);
+    }
+
+    [HttpGet("shared")]
+    public async Task<ActionResult<IEnumerable<TodoItem>>> GetSharedTodos()
+    {
+        var userId = GetCurrentUserId();
+        var sharedTodos = await _context.TodoItems
+            .Include(t => t.Category)
+            .Include(t => t.Steps)
+            .Include(t => t.CompletedByUser)
+            .Where(t => !t.IsDeleted && (t.Shares.Any(s => s.UserId == userId) || (t.UserId == userId && t.IsShared)))
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync();
+
+        return Ok(sharedTodos);
     }
 
     //GET by id
@@ -54,7 +91,8 @@ public class TodosController : ControllerBase
         var userId = GetCurrentUserId();
         var todo = await _context.TodoItems
             .Include(t => t.Steps)
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            .Include(t => t.CompletedByUser)
+            .FirstOrDefaultAsync(t => t.Id == id && (t.UserId == userId || t.Shares.Any(s => s.UserId == userId)));
 
         if (todo == null)
         {
@@ -120,7 +158,7 @@ public class TodosController : ControllerBase
         var userId = GetCurrentUserId();
         var todo = await _context.TodoItems
             .Include(t => t.Steps)
-            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            .FirstOrDefaultAsync(t => t.Id == id && (t.UserId == userId || t.Shares.Any(s => s.UserId == userId)));
 
         if (todo == null)
         {
@@ -130,6 +168,15 @@ public class TodosController : ControllerBase
         todo.Title = dto.Title;
         bool wasCompleted = todo.IsCompleted;
         todo.IsCompleted = dto.IsCompleted;
+        
+        if (todo.IsCompleted && !wasCompleted)
+        {
+            todo.CompletedByUserId = userId;
+        }
+        else if (!todo.IsCompleted)
+        {
+            todo.CompletedByUserId = null;
+        }
         todo.DueDate = dto.DueDate;
         todo.Description = dto.Description;
         todo.Priority = dto.Priority;
@@ -178,8 +225,56 @@ public class TodosController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(todo);
 
         return NoContent();
+    }
+
+    public class ShareRequestDto
+    {
+        public List<int> FriendIds { get; set; } = new List<int>();
+    }
+
+    [HttpPost("{id}/share")]
+    public async Task<IActionResult> ShareTodo(int id, [FromBody] ShareRequestDto dto)
+    {
+        var userId = GetCurrentUserId();
+        var todo = await _context.TodoItems
+            .Include(t => t.Shares)
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+        if (todo == null)
+        {
+            return NotFound(new { message = "Không tìm thấy công việc." });
+        }
+
+        if (!todo.IsShared)
+        {
+            todo.IsShared = true;
+            todo.SharedCode = GenerateSharedCode(todo.Id);
+        }
+
+        // Add new shares
+        foreach (var friendId in dto.FriendIds)
+        {
+            if (!todo.Shares.Any(s => s.UserId == friendId))
+            {
+                todo.Shares.Add(new TodoShare { UserId = friendId, TodoItemId = todo.Id });
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(todo);
+
+        return Ok(new { message = "Đã chia sẻ thành công.", sharedCode = todo.SharedCode });
+    }
+
+    private string GenerateSharedCode(int todoId)
+    {
+        var input = $"{todoId}-{Guid.NewGuid()}";
+        using var sha256 = SHA256.Create();
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
+        return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").Substring(0, 12);
     }
 
     //DELETE
@@ -202,6 +297,7 @@ public class TodosController : ControllerBase
         // Soft delete
         todo.IsDeleted = true;
         await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(todo);
 
         return NoContent();
     }
@@ -234,6 +330,7 @@ public class TodosController : ControllerBase
 
         _context.TodoItems.Remove(todo);
         await _context.SaveChangesAsync();
+        await NotifySharedUsersAsync(todo);
 
         return NoContent();
     }

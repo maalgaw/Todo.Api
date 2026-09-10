@@ -44,5 +44,12 @@ public class TodoItem
     public int? UserId { get; set; }
     public User? User { get; set; }
 
+    // Sharing and Collaboration
+    public bool IsShared { get; set; } = false;
+    public string? SharedCode { get; set; }
+    public int? CompletedByUserId { get; set; }
+    public User? CompletedByUser { get; set; }
+
     public ICollection<TodoStep> Steps { get; set; } = new List<TodoStep>();
+    public ICollection<TodoShare> Shares { get; set; } = new List<TodoShare>();
 }

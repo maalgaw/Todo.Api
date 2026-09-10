@@ -12,4 +12,7 @@ public class TodoStep
     
     [JsonIgnore]
     public TodoItem? TodoItem { get; set; }
+
+    public int? CompletedByUserId { get; set; }
+    public User? CompletedByUser { get; set; }
 }
